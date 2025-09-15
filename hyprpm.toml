@@ -1,0 +1,13 @@
+[repository]
+name = "hyprexpo-dong"
+authors = ["dong"]
+
+
+[hyprexpo]
+description = "A plugin to add expo (overlay) for workspaces"
+authors = ["dong"]
+output = "hyprexpo/hyprexpo.so"
+build = [
+    "make -C hyprexpo all",
+]
+since_hyprland = 4364
