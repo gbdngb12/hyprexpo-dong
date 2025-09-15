@@ -124,10 +124,24 @@ COverview::COverview(PHLWORKSPACE startedOn_, bool swipe_) : startedOn(startedOn
 
     g_pHyprRenderer->makeEGLCurrent();
 
-    Vector2D tileSize       = {pMonitor->m_size.x / COLUMNS, pMonitor->m_size.y / ROWS};
-    Vector2D tileRenderSize = {(pMonitor->m_size.x - GAP_WIDTH * pMonitor->m_scale * (COLUMNS - 1)) / COLUMNS,
-                               (pMonitor->m_size.y - GAP_WIDTH * pMonitor->m_scale * (ROWS - 1)) / ROWS};
-    CBox     monbox{0, 0, tileSize.x * 2, tileSize.y * 2};
+    const auto MON_SIZE = pMonitor->m_size;
+    const auto MON_AR   = MON_SIZE.x / MON_SIZE.y;
+    const auto GAP      = GAP_WIDTH * pMonitor->m_scale;
+
+    double     maxTileWidthX  = (MON_SIZE.x - (COLUMNS - 1) * GAP) / COLUMNS;
+    double     maxTileWidthY  = (MON_SIZE.y - (ROWS - 1) * GAP) * MON_AR / ROWS;
+
+    double     tileWidth  = std::min(maxTileWidthX, maxTileWidthY);
+    double     tileHeight = tileWidth / MON_AR;
+
+    m_vTileRenderSize = {tileWidth, tileHeight};
+
+    const double gridWidth  = COLUMNS * m_vTileRenderSize.x + (COLUMNS - 1) * GAP;
+    const double gridHeight = ROWS * m_vTileRenderSize.y + (ROWS - 1) * GAP;
+
+    m_vGridOffset = {(MON_SIZE.x - gridWidth) / 2.0, (MON_SIZE.y - gridHeight) / 2.0};
+
+    CBox       monbox{0, 0, m_vTileRenderSize.x * 2, m_vTileRenderSize.y * 2};
 
     if (!ENABLE_LOWRES)
         monbox = {{0, 0}, pMonitor->m_pixelSize};
@@ -175,7 +189,8 @@ COverview::COverview(PHLWORKSPACE startedOn_, bool swipe_) : startedOn(startedOn
         } else
             g_pHyprRenderer->renderWorkspace(PMONITOR, PWORKSPACE, Time::steadyNow(), monbox);
 
-        image.box = {(i % COLUMNS) * tileRenderSize.x + (i % COLUMNS) * GAP_WIDTH, (i / COLUMNS) * tileRenderSize.y + (i / COLUMNS) * GAP_WIDTH, tileRenderSize.x, tileRenderSize.y};
+        image.box = {m_vGridOffset.x + (i % COLUMNS) * (m_vTileRenderSize.x + GAP), m_vGridOffset.y + (i / COLUMNS) * (m_vTileRenderSize.y + GAP), m_vTileRenderSize.x,
+                     m_vTileRenderSize.y};
 
         g_pHyprOpenGL->m_renderData.blockScreenShader = true;
         g_pHyprRenderer->endRender();
@@ -263,8 +278,7 @@ void COverview::redrawID(int id, bool forcelowres) {
 
     id = std::clamp(id, 0, ROWS * COLUMNS);
 
-    Vector2D tileSize = {pMonitor->m_size.x / COLUMNS, pMonitor->m_size.y / ROWS};
-    CBox     monbox{0, 0, tileSize.x * 2, tileSize.y * 2};
+    CBox monbox{0, 0, m_vTileRenderSize.x * 2, m_vTileRenderSize.y * 2};
 
     if (!forcelowres && (size->value() != pMonitor->m_size || closing))
         monbox = {{0, 0}, pMonitor->m_pixelSize};
@@ -338,16 +352,15 @@ void COverview::onDamageReported() {
 
     Vector2D    SIZE = size->value();
 
-    Vector2D    tileRenderSize = {(SIZE.x - GAP_WIDTH * (COLUMNS - 1)) / COLUMNS, (SIZE.y - GAP_WIDTH * (ROWS - 1)) / ROWS};
-    // const auto& TILE           = images[std::clamp(openedID, 0, ROWS * COLUMNS)];
-    CBox        texbox         = CBox{(openedID % COLUMNS) * tileRenderSize.x + (openedID % COLUMNS) * GAP_WIDTH,
-                       (openedID / COLUMNS) * tileRenderSize.y + (openedID / COLUMNS) * GAP_WIDTH, tileRenderSize.x, tileRenderSize.y}
-                      .translate(pMonitor->m_position);
+    // onDamageReported is called during zoom animation. The logic in fullRender is sufficient
+    // for redrawing, so we can simplify this to just damage the whole monitor.
+    // CBox texbox = ...
+    // g_pHyprRenderer->damageBox(texbox);
 
     damage();
 
     blockDamageReporting = true;
-    g_pHyprRenderer->damageBox(texbox);
+    g_pHyprRenderer->damageBox(CBox{0, 0, pMonitor->m_size.x, pMonitor->m_size.y});
     blockDamageReporting = false;
     g_pCompositor->scheduleFrameForMonitor(pMonitor.lock());
 }
@@ -432,15 +445,28 @@ void COverview::fullRender() {
         onWorkspaceChange();
     }
 
-    Vector2D SIZE = size->value();
+    const Vector2D SIZE   = size->value();
+    const auto     MON_AR = pMonitor->m_size.x / pMonitor->m_size.y;
 
-    Vector2D tileRenderSize = {(SIZE.x - GAPSIZE * (COLUMNS - 1)) / COLUMNS, (SIZE.y - GAPSIZE * (ROWS - 1)) / ROWS};
+    // Recalculate tile size and offset based on current animated SIZE
+    double         maxTileWidthX  = (SIZE.x - (COLUMNS - 1) * GAPSIZE) / COLUMNS;
+    double         maxTileWidthY  = (SIZE.y - (ROWS - 1) * GAPSIZE) * MON_AR / ROWS;
+
+    double         tileWidth  = std::min(maxTileWidthX, maxTileWidthY);
+    double         tileHeight = tileWidth / MON_AR;
+
+    const Vector2D tileRenderSize = {tileWidth, tileHeight};
+
+    const double   gridWidth  = COLUMNS * tileRenderSize.x + (COLUMNS - 1) * GAPSIZE;
+    const double   gridHeight = ROWS * tileRenderSize.y + (ROWS - 1) * GAPSIZE;
+
+    const Vector2D gridOffset = {(SIZE.x - gridWidth) / 2.0, (SIZE.y - gridHeight) / 2.0};
 
     g_pHyprOpenGL->clear(BG_COLOR.stripA());
 
     for (size_t y = 0; y < (size_t)ROWS; ++y) {
         for (size_t x = 0; x < (size_t)COLUMNS; ++x) {
-            CBox texbox = {x * tileRenderSize.x + x * GAPSIZE, y * tileRenderSize.y + y * GAPSIZE, tileRenderSize.x, tileRenderSize.y};
+            CBox texbox = {gridOffset.x + x * (tileRenderSize.x + GAPSIZE), gridOffset.y + y * (tileRenderSize.y + GAPSIZE), tileRenderSize.x, tileRenderSize.y};
             texbox.scale(pMonitor->m_scale).translate(pos->value());
             texbox.round();
             CRegion damage{0, 0, INT16_MAX, INT16_MAX};

@@ -48,6 +48,9 @@ class COverview {
     int        GAP_WIDTH   = 5;
     CHyprColor BG_COLOR    = CHyprColor{0.1, 0.1, 0.1, 1.0};
 
+    Vector2D   m_vGridOffset;
+    Vector2D   m_vTileRenderSize;
+
     bool       damageDirty = false;
 
     struct SWorkspaceImage {
