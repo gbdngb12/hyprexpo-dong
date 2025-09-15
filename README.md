@@ -10,6 +10,7 @@ A great start to configure this plugin would be adding this code to the `plugin`
 plugin {
     hyprexpo {
         columns = 3
+        rows = 3
         gap_size = 5
         bg_col = rgb(111111)
         workspace_method = center current # [center/first] [workspace] e.g. first 1 or center m+1
@@ -26,6 +27,7 @@ plugin {
 
 | property | type | description | default |
 | --- | --- | --- | --- |
+| rows | number | how many rows of desktops are displayed | `3`
 columns | number | how many desktops are displayed on one line | `3`
 gap_size | number | gap between desktops | `5`
 bg_col | color | color in gaps (between desktops) | `rgb(000000)`
@@ -57,4 +59,3 @@ off | hides the overview
 disable | same as `off`
 on | displays the overview
 enable | same as `on`
-
