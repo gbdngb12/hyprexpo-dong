@@ -6,8 +6,8 @@ authors = ["dong"]
 [hyprexpo]
 description = "A plugin to add expo (overlay) for workspaces"
 authors = ["Vaxry"]
-output = "hyprexpo/hyprexpo.so"
+output = "hyprexpo.so"
 build = [
-    "make -C hyprexpo all",
+    "make all",
 ]
 since_hyprland = 4364
