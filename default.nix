@@ -11,7 +11,7 @@ hyprlandPlugins.mkHyprlandPlugin hyprland {
   inherit (hyprland) nativeBuildInputs;
 
   meta = with lib; {
-    homepage = "https://github.com/gbdngb12/hyprexpo-dong";
+    homepage = "https://github.com/hyprwm/hyprland-plugins/tree/main/hyprexpo";
     description = "Hyprland workspaces overview plugin";
     license = licenses.bsd3;
     platforms = platforms.linux;

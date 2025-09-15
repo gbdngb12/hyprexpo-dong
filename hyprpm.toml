@@ -3,9 +3,9 @@ name = "hyprexpo-dong"
 authors = ["dong"]
 
 
-[hyprexpo-dong]
+[hyprexpo]
 description = "A plugin to add expo (overlay) for workspaces"
-authors = ["dong"]
+authors = ["Vaxry"]
 output = "hyprexpo/hyprexpo.so"
 build = [
     "make -C hyprexpo all",

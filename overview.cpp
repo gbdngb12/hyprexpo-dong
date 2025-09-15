@@ -31,15 +31,13 @@ COverview::COverview(PHLWORKSPACE startedOn_, bool swipe_) : startedOn(startedOn
     const auto PMONITOR = g_pCompositor->m_lastMonitor.lock();
     pMonitor            = PMONITOR;
 
-    static auto* const* PCOLUMNS  = (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprexpo:columns")->getDataStaticPtr();
-    static auto* const* PROWS     = (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprexpo:rows")->getDataStaticPtr();
-    static auto* const* PGAPS     = (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprexpo:gap_size")->getDataStaticPtr();
-    static auto* const* PCOL      = (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprexpo:bg_col")->getDataStaticPtr();
-    static auto* const* PSKIP     = (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprexpo:skip_empty")->getDataStaticPtr();
-    static auto const*  PMETHOD   = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprexpo:workspace_method")->getDataStaticPtr();
+    static auto* const* PCOLUMNS = (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprexpo:columns")->getDataStaticPtr();
+    static auto* const* PGAPS    = (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprexpo:gap_size")->getDataStaticPtr();
+    static auto* const* PCOL     = (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprexpo:bg_col")->getDataStaticPtr();
+    static auto* const* PSKIP    = (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprexpo:skip_empty")->getDataStaticPtr();
+    static auto const*  PMETHOD  = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprexpo:workspace_method")->getDataStaticPtr();
 
-    COLUMNS     = **PCOLUMNS;
-    ROWS        = **PROWS;
+    SIDE_LENGTH = **PCOLUMNS;
     GAP_WIDTH   = **PGAPS;
     BG_COLOR    = **PCOL;
 
@@ -56,7 +54,7 @@ COverview::COverview(PHLWORKSPACE startedOn_, bool swipe_) : startedOn(startedOn
             methodStartID = pMonitor->activeWorkspaceID();
     }
 
-    images.resize(ROWS * COLUMNS);
+    images.resize(SIDE_LENGTH * SIDE_LENGTH);
 
     // r includes empty workspaces; m skips over them
     std::string selector = **PSKIP ? "m" : "r";
@@ -87,7 +85,7 @@ COverview::COverview(PHLWORKSPACE startedOn_, bool swipe_) : startedOn(startedOn
         // Scan through workspaces higher than methodStartID. If using "m"
         // (skip_empty), stop when we wrap, leaving the rest of the workspace
         // ID's set to WORKSPACE_INVALID
-        for (size_t i = 0; i < (size_t)(ROWS * COLUMNS); ++i) {
+        for (size_t i = 0; i < (size_t)(SIDE_LENGTH * SIDE_LENGTH); ++i) {
             auto& image = images[i];
             if ((int64_t)i - backtracked < 0) {
                 currentID = getWorkspaceIDNameFromString(selector + std::to_string((int64_t)i - backtracked)).id;
@@ -112,7 +110,7 @@ COverview::COverview(PHLWORKSPACE startedOn_, bool swipe_) : startedOn(startedOn
         // Scan through workspaces higher than methodStartID. If using "m"
         // (skip_empty), stop when we wrap, leaving the rest of the workspace
         // ID's set to WORKSPACE_INVALID
-        for (size_t i = 1; i < (size_t)(ROWS * COLUMNS); ++i) {
+        for (size_t i = 1; i < (size_t)(SIDE_LENGTH * SIDE_LENGTH); ++i) {
             auto& image = images[i];
             currentID   = getWorkspaceIDNameFromString(selector + "+" + std::to_string(i)).id;
             if (currentID <= methodStartID)
@@ -125,8 +123,8 @@ COverview::COverview(PHLWORKSPACE startedOn_, bool swipe_) : startedOn(startedOn
 
     g_pHyprRenderer->makeEGLCurrent();
 
-    Vector2D tileSize       = {pMonitor->m_size.x / COLUMNS, pMonitor->m_size.y / ROWS};
-    Vector2D tileRenderSize = {(pMonitor->m_size.x - (COLUMNS - 1) * GAP_WIDTH * pMonitor->m_scale) / COLUMNS, (pMonitor->m_size.y - (ROWS - 1) * GAP_WIDTH * pMonitor->m_scale) / ROWS};
+    Vector2D tileSize       = pMonitor->m_size / SIDE_LENGTH;
+    Vector2D tileRenderSize = (pMonitor->m_size - Vector2D{GAP_WIDTH * pMonitor->m_scale, GAP_WIDTH * pMonitor->m_scale} * (SIDE_LENGTH - 1)) / SIDE_LENGTH;
     CBox     monbox{0, 0, tileSize.x * 2, tileSize.y * 2};
 
     if (!ENABLE_LOWRES)
@@ -142,7 +140,7 @@ COverview::COverview(PHLWORKSPACE startedOn_, bool swipe_) : startedOn(startedOn
 
     startedOn->m_visible = false;
 
-    for (size_t i = 0; i < (size_t)(ROWS * COLUMNS); ++i) {
+    for (size_t i = 0; i < (size_t)(SIDE_LENGTH * SIDE_LENGTH); ++i) {
         COverview::SWorkspaceImage& image = images[i];
         image.fb.alloc(monbox.w, monbox.h, PMONITOR->m_output->state->state().drmFormat);
 
@@ -175,7 +173,7 @@ COverview::COverview(PHLWORKSPACE startedOn_, bool swipe_) : startedOn(startedOn
         } else
             g_pHyprRenderer->renderWorkspace(PMONITOR, PWORKSPACE, Time::steadyNow(), monbox);
 
-        image.box = {(i % COLUMNS) * tileRenderSize.x + (i % COLUMNS) * GAP_WIDTH, (i / COLUMNS) * tileRenderSize.y + (i / COLUMNS) * GAP_WIDTH, tileRenderSize.x,
+        image.box = {(i % SIDE_LENGTH) * tileRenderSize.x + (i % SIDE_LENGTH) * GAP_WIDTH, (i / SIDE_LENGTH) * tileRenderSize.y + (i / SIDE_LENGTH) * GAP_WIDTH, tileRenderSize.x,
                      tileRenderSize.y};
 
         g_pHyprOpenGL->m_renderData.blockScreenShader = true;
@@ -190,11 +188,12 @@ COverview::COverview(PHLWORKSPACE startedOn_, bool swipe_) : startedOn(startedOn
     g_pDesktopAnimationManager->startAnimation(startedOn, CDesktopAnimationManager::ANIMATION_TYPE_IN, true, true);
 
     // zoom on the current workspace.
-    // const auto& TILE = images[std::clamp(currentid, 0, ROWS * COLUMNS)];
+    // const auto& TILE = images[std::clamp(currentid, 0, SIDE_LENGTH * SIDE_LENGTH)];
 
-    g_pAnimationManager->createAnimation(pMonitor->m_size * (pMonitor->m_size / tileSize), size, g_pConfigManager->getAnimationPropertyConfig("windowsMove"), AVARDAMAGE_NONE);
-    g_pAnimationManager->createAnimation(
-        (-((pMonitor->m_size / Vector2D{(double)COLUMNS, (double)ROWS}) * Vector2D{(double)(currentid % COLUMNS), (double)(currentid / COLUMNS)}) * pMonitor->m_scale) * (pMonitor->m_size / tileSize), pos, g_pConfigManager->getAnimationPropertyConfig("windowsMove"), AVARDAMAGE_NONE);
+    g_pAnimationManager->createAnimation(pMonitor->m_size * pMonitor->m_size / tileSize, size, g_pConfigManager->getAnimationPropertyConfig("windowsMove"), AVARDAMAGE_NONE);
+    g_pAnimationManager->createAnimation((-((pMonitor->m_size / (double)SIDE_LENGTH) * Vector2D{currentid % SIDE_LENGTH, currentid / SIDE_LENGTH}) * pMonitor->m_scale) *
+                                             (pMonitor->m_size / tileSize),
+                                         pos, g_pConfigManager->getAnimationPropertyConfig("windowsMove"), AVARDAMAGE_NONE);
 
     size->setUpdateCallback(damageMonitor);
     pos->setUpdateCallback(damageMonitor);
@@ -243,9 +242,9 @@ void COverview::selectHoveredWorkspace() {
         return;
 
     // get tile x,y
-    int x     = lastMousePosLocal.x / pMonitor->m_size.x * COLUMNS;
-    int y     = lastMousePosLocal.y / pMonitor->m_size.y * ROWS;
-    closeOnID = x + y * COLUMNS;
+    int x     = lastMousePosLocal.x / pMonitor->m_size.x * SIDE_LENGTH;
+    int y     = lastMousePosLocal.y / pMonitor->m_size.y * SIDE_LENGTH;
+    closeOnID = x + y * SIDE_LENGTH;
 }
 
 void COverview::redrawID(int id, bool forcelowres) {
@@ -258,11 +257,11 @@ void COverview::redrawID(int id, bool forcelowres) {
 
     g_pHyprRenderer->makeEGLCurrent();
 
-    id = std::clamp(id, 0, ROWS * COLUMNS);
+    id = std::clamp(id, 0, SIDE_LENGTH * SIDE_LENGTH);
 
-    Vector2D tileSize = {pMonitor->m_size.x / COLUMNS, pMonitor->m_size.y / ROWS};
-    // Vector2D tileRenderSize = (pMonitor->m_size - Vector2D{GAP_WIDTH, GAP_WIDTH} * (SIDE_LENGTH - 1)) / SIDE_LENGTH;
-    CBox monbox{0, 0, tileSize.x * 2, tileSize.y * 2};
+    Vector2D tileSize       = pMonitor->m_size / SIDE_LENGTH;
+    Vector2D tileRenderSize = (pMonitor->m_size - Vector2D{GAP_WIDTH, GAP_WIDTH} * (SIDE_LENGTH - 1)) / SIDE_LENGTH;
+    CBox     monbox{0, 0, tileSize.x * 2, tileSize.y * 2};
 
     if (!forcelowres && (size->value() != pMonitor->m_size || closing))
         monbox = {{0, 0}, pMonitor->m_pixelSize};
@@ -320,7 +319,7 @@ void COverview::redrawID(int id, bool forcelowres) {
 }
 
 void COverview::redrawAll(bool forcelowres) {
-    for (size_t i = 0; i < (size_t)(ROWS * COLUMNS); ++i) {
+    for (size_t i = 0; i < (size_t)(SIDE_LENGTH * SIDE_LENGTH); ++i) {
         redrawID(i, forcelowres);
     }
 }
@@ -336,10 +335,11 @@ void COverview::onDamageReported() {
 
     Vector2D SIZE = size->value();
 
-    Vector2D tileRenderSize = {(SIZE.x - (COLUMNS - 1) * GAP_WIDTH) / COLUMNS, (SIZE.y - (ROWS - 1) * GAP_WIDTH) / ROWS};
-    // const auto& TILE           = images[std::clamp(openedID, 0, ROWS * COLUMNS)];
-    CBox texbox = CBox{(openedID % COLUMNS) * tileRenderSize.x + (openedID % COLUMNS) * GAP_WIDTH,
-                       (openedID / COLUMNS) * tileRenderSize.y + (openedID / COLUMNS) * GAP_WIDTH, tileRenderSize.x, tileRenderSize.y}
+    Vector2D tileSize       = (SIZE / SIDE_LENGTH);
+    Vector2D tileRenderSize = (SIZE - Vector2D{GAP_WIDTH, GAP_WIDTH} * (SIDE_LENGTH - 1)) / SIDE_LENGTH;
+    // const auto& TILE           = images[std::clamp(openedID, 0, SIDE_LENGTH * SIDE_LENGTH)];
+    CBox texbox = CBox{(openedID % SIDE_LENGTH) * tileRenderSize.x + (openedID % SIDE_LENGTH) * GAP_WIDTH,
+                       (openedID / SIDE_LENGTH) * tileRenderSize.y + (openedID / SIDE_LENGTH) * GAP_WIDTH, tileRenderSize.x, tileRenderSize.y}
                       .translate(pMonitor->m_position);
 
     damage();
@@ -356,12 +356,12 @@ void COverview::close() {
 
     const int   ID = closeOnID == -1 ? openedID : closeOnID;
 
-    const auto& TILE = images[std::clamp(ID, 0, ROWS * COLUMNS)];
+    const auto& TILE = images[std::clamp(ID, 0, SIDE_LENGTH * SIDE_LENGTH)];
 
-    Vector2D tileSize = {pMonitor->m_size.x / COLUMNS, pMonitor->m_size.y / ROWS};
+    Vector2D    tileSize = (pMonitor->m_size / SIDE_LENGTH);
 
-    *size = pMonitor->m_size * (pMonitor->m_size / tileSize);
-    *pos  = (-((pMonitor->m_size / Vector2D{(double)COLUMNS, (double)ROWS}) * Vector2D{(double)(ID % COLUMNS), (double)(ID / COLUMNS)}) * pMonitor->m_scale) * (pMonitor->m_size / tileSize);
+    *size = pMonitor->m_size * pMonitor->m_size / tileSize;
+    *pos  = (-((pMonitor->m_size / (double)SIDE_LENGTH) * Vector2D{ID % SIDE_LENGTH, ID / SIDE_LENGTH}) * pMonitor->m_scale) * (pMonitor->m_size / tileSize);
 
     size->setCallbackOnEnd(removeOverview);
 
@@ -406,7 +406,7 @@ void COverview::onWorkspaceChange() {
     else
         startedOn = pMonitor->m_activeWorkspace;
 
-    for (size_t i = 0; i < (size_t)(ROWS * COLUMNS); ++i) {
+    for (size_t i = 0; i < (size_t)(SIDE_LENGTH * SIDE_LENGTH); ++i) {
         if (images[i].workspaceID != pMonitor->activeWorkspaceID())
             continue;
 
@@ -432,17 +432,18 @@ void COverview::fullRender() {
 
     Vector2D SIZE = size->value();
 
-    Vector2D tileRenderSize = {(SIZE.x - (COLUMNS - 1) * GAPSIZE) / COLUMNS, (SIZE.y - (ROWS - 1) * GAPSIZE) / ROWS};
+    Vector2D tileSize       = (SIZE / SIDE_LENGTH);
+    Vector2D tileRenderSize = (SIZE - Vector2D{GAPSIZE, GAPSIZE} * (SIDE_LENGTH - 1)) / SIDE_LENGTH;
 
     g_pHyprOpenGL->clear(BG_COLOR.stripA());
 
-    for (size_t y = 0; y < (size_t)ROWS; ++y) {
-        for (size_t x = 0; x < (size_t)COLUMNS; ++x) {
+    for (size_t y = 0; y < (size_t)SIDE_LENGTH; ++y) {
+        for (size_t x = 0; x < (size_t)SIDE_LENGTH; ++x) {
             CBox texbox = {x * tileRenderSize.x + x * GAPSIZE, y * tileRenderSize.y + y * GAPSIZE, tileRenderSize.x, tileRenderSize.y};
             texbox.scale(pMonitor->m_scale).translate(pos->value());
             texbox.round();
             CRegion damage{0, 0, INT16_MAX, INT16_MAX};
-            g_pHyprOpenGL->renderTextureInternal(images[x + y * COLUMNS].fb.getTexture(), texbox, {.damage = &damage, .a = 1.0});
+            g_pHyprOpenGL->renderTextureInternal(images[x + y * SIDE_LENGTH].fb.getTexture(), texbox, {.damage = &damage, .a = 1.0});
         }
     }
 }
@@ -474,11 +475,11 @@ void COverview::onSwipeUpdate(double delta) {
     const float         PERC               = closing ? std::clamp(delta / (double)**PDISTANCE, 0.0, 1.0) : 1.0 - std::clamp(delta / (double)**PDISTANCE, 0.0, 1.0);
     const auto          WORKSPACE_FOCUS_ID = closing && closeOnID != -1 ? closeOnID : openedID;
 
-    Vector2D tileSize = {pMonitor->m_size.x / COLUMNS, pMonitor->m_size.y / ROWS};
+    Vector2D            tileSize = (pMonitor->m_size / SIDE_LENGTH);
 
-    const auto SIZEMAX = pMonitor->m_size * (pMonitor->m_size / tileSize);
-    const auto POSMAX =
-        (-((pMonitor->m_size / Vector2D{(double)COLUMNS, (double)ROWS}) * Vector2D{(double)(WORKSPACE_FOCUS_ID % COLUMNS), (double)(WORKSPACE_FOCUS_ID / COLUMNS)}) * pMonitor->m_scale) * (pMonitor->m_size / tileSize);
+    const auto          SIZEMAX = pMonitor->m_size * pMonitor->m_size / tileSize;
+    const auto          POSMAX  = (-((pMonitor->m_size / (double)SIDE_LENGTH) * Vector2D{WORKSPACE_FOCUS_ID % SIDE_LENGTH, WORKSPACE_FOCUS_ID / SIDE_LENGTH}) * pMonitor->m_scale) *
+        (pMonitor->m_size / tileSize);
 
     const auto SIZEMIN = pMonitor->m_size;
     const auto POSMIN  = Vector2D{0, 0};
@@ -489,7 +490,7 @@ void COverview::onSwipeUpdate(double delta) {
 
 void COverview::onSwipeEnd() {
     const auto SIZEMIN = pMonitor->m_size;
-    const auto SIZEMAX = pMonitor->m_size * (pMonitor->m_size / Vector2D{pMonitor->m_size.x / COLUMNS, pMonitor->m_size.y / ROWS});
+    const auto SIZEMAX = pMonitor->m_size * pMonitor->m_size / (pMonitor->m_size / SIDE_LENGTH);
     const auto PERC    = (size->value() - SIZEMIN).x / (SIZEMAX - SIZEMIN).x;
     if (PERC > 0.5) {
         close();
