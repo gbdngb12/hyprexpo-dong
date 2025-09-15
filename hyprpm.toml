@@ -3,7 +3,7 @@ name = "hyprexpo-dong"
 authors = ["dong"]
 
 
-[hyprexpo]
+[hyprexpo-dong]
 description = "A plugin to add expo (overlay) for workspaces"
 authors = ["dong"]
 output = "hyprexpo/hyprexpo.so"
